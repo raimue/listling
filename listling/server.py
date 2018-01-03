@@ -22,7 +22,7 @@ import json
 import micro
 from micro.server import Endpoint, Server, make_orderable_endpoints, make_trashable_endpoints
 
-from . import Listling
+from . import Listling, Item
 
 def make_server(port=8080, url=None, debug=False, redis_url='', smtp_url=''):
     """Create an Open Listling server."""
@@ -37,7 +37,8 @@ def make_server(port=8080, url=None, debug=False, redis_url='', smtp_url=''):
         *make_trashable_endpoints(r'/api/lists/([^/]+)/items/([^/]+)',
                                   lambda list_id, id: app.lists[list_id].items[id]),
         (r'/api/lists/([^/]+)/items/([^/]+)/check$', _ItemCheckEndpoint),
-        (r'/api/lists/([^/]+)/items/([^/]+)/uncheck$', _ItemUncheckEndpoint)
+        (r'/api/lists/([^/]+)/items/([^/]+)/uncheck$', _ItemUncheckEndpoint),
+        (r'/api/lists/([^/]+)/items/([^/]+)/assign$', _ItemAssignEndpoint)
     ]
     return Server(app, handlers, port, url, client_modules_path='node_modules', debug=debug)
 
@@ -107,4 +108,13 @@ class _ItemUncheckEndpoint(Endpoint):
     def post(self, lst_id, id):
         item = self.app.lists[lst_id].items[id]
         item.uncheck()
+        self.write(item.json(restricted=True, include=True))
+
+class _ItemAssignEndpoint(Endpoint):
+    def post(self, list_id, id):
+        item = self.app.lists[list_id].items[id]
+        args = self.check_args({'names': list}) # TODO: check for type string
+        # TODO: nice error if a user is not found -- if name is blank
+        #args['users'] = Item.get_users(args.pop('user_ids'), self.app)
+        item.assign(**args)
         self.write(item.json(restricted=True, include=True))

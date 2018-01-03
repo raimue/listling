@@ -232,7 +232,7 @@ listling.ListPage = class extends micro.Page {
         this._items = null;
         this._form = this.querySelector("form");
         this._events = ["list-items-create", "list-items-move", "item-edit", "item-trash",
-                        "item-restore", "item-check", "item-uncheck"];
+                        "item-restore", "item-check", "item-uncheck", "item-assign"];
     }
 
     async attachedCallback() {
@@ -277,7 +277,7 @@ listling.ListPage = class extends micro.Page {
                 ? this._items.findIndex(item => item.id === event.detail.to.id) + 1 : 0;
             this._items.splice(j, 0, event.detail.item);
         } else if (
-            ["item-edit", "item-trash", "item-restore", "item-check", "item-uncheck"]
+            ["item-edit", "item-trash", "item-restore", "item-check", "item-uncheck", "item-assign"]
                 .includes(event.type)) {
             let i = this._items.findIndex(item => item.id === event.detail.item.id);
             this._items[i] = event.detail.item;
@@ -293,6 +293,72 @@ listling.ListPage = class extends micro.Page {
         });
     }
 };
+
+listling.AssignNotification = class extends HTMLElement {
+    createdCallback() {
+        this.appendChild(
+            document.importNode(ui.querySelector(".listling-assign-notification-template").content,
+                                true));
+        this.classList.add("micro-notification");
+
+        let close = () => {
+            this.remove();
+            ui.querySelector("main").style.filter = "";
+            ui.querySelector("main").style.pointerEvents = "";
+        };
+
+        this.querySelector("button:not([type])").run = async () => {
+            let input = this._form.elements.names;
+            this._assignees.push({id: null, name: input.value});
+            input.value = "";
+            let item = await micro.call(
+                "POST", `/api/lists/${this._item.list_id}/items/${this._item.id}/assign`,
+                {names: this._assignees.map(u => u.name)});
+            ui.dispatchEvent(new CustomEvent("item-assign", {detail: {item}}));
+            close();
+        };
+
+        this.querySelector(".action-cancel").run = close;
+
+        this._form = this.querySelector("form");
+        this._item = null;
+
+        ui.querySelector("main").style.filter = "blur(1px) opacity(50%)";
+        ui.querySelector("main").style.pointerEvents = "none";
+    }
+
+    attachedCallback() {
+        this._form.elements.names.focus();
+    }
+
+    get item() {
+        return this._item;
+    }
+
+    set item(value) {
+        this._item = value;
+        this._assignees = new micro.bind.Watchable(this._item.assignees);
+        this.querySelector("h1").textContent = `Assign item ${this._item.title}`;
+        let span = this.querySelector("label > span > span");
+        let fragment = micro.bind.list(span, this._assignees, "user");
+        span.textContent = "";
+        span.appendChild(fragment);
+    }
+}
+
+Object.defineProperty(micro.UserElement.prototype, "user", {
+	set(value) {
+        this._user = value;
+        if (this._user) {
+            this.classList.toggle("micro-user-anonymous", !this._user.id);
+            //let i = this.querySelector("i");
+            //i.classList.toggle("fa-user", this._user.id);
+            //i.classList.toggle("fa-user-o", !this._user.id);
+            this.querySelector("span").textContent = this._user.name;
+            this.setAttribute("title", this._user.name);
+        }
+    }
+});
 
 listling.ItemElement = class extends HTMLLIElement {
     createdCallback() {
@@ -359,6 +425,12 @@ listling.ItemElement = class extends HTMLLIElement {
                 let item = await micro.call(
                     "POST", `/api/lists/${ui.page.list.id}/items/${this._data.item.id}/uncheck`);
                 ui.dispatchEvent(new CustomEvent("item-uncheck", {detail: {item}}));
+            },
+
+            startAssign: () => {
+                let notification = document.createElement("listling-assign-notification");
+                notification.item = this._data.item;
+                ui.notify(notification);
             }
         });
         micro.bind.bind(this.children, this._data);
@@ -368,6 +440,8 @@ listling.ItemElement = class extends HTMLLIElement {
                                   this._data.item && this._data.item.trashed);
             this.classList.toggle("listling-item-checked",
                                   this._data.item && this._data.item.checked);
+            this.classList.toggle("listling-item-assigned",
+                                  this._data.item && this._data.item.assignees.length > 0);
             this.classList.toggle("listling-item-mode-view", !this._data.editMode);
             this.classList.toggle("listling-item-mode-edit", this._data.editMode);
         };
@@ -399,3 +473,4 @@ document.registerElement("listling-start-page", listling.StartPage);
 document.registerElement("listling-list-page", listling.ListPage);
 document.registerElement("listling-item",
                          {prototype: listling.ItemElement.prototype, extends: "li"});
+document.registerElement("listling-assign-notification", listling.AssignNotification);

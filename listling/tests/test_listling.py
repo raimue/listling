@@ -89,8 +89,11 @@ class ListlingUpdateTest(AsyncTestCase):
 class ListTest(ListlingTestCase):
     def test_edit(self):
         lst = self.app.lists.create(v=2)
+        user2 = self.app.login()
         lst.edit(description='What has to be done!')
+        self.assertEqual(lst.title, 'New list')
         self.assertEqual(lst.description, 'What has to be done!')
+        self.assertEqual(lst.users, [self.user, user2])
 
     def test_items_create(self):
         lst = self.app.lists.create(v=2)
@@ -104,6 +107,7 @@ class ItemTest(ListlingTestCase):
     def test_edit(self):
         item = self.make_item()
         item.edit(text='Very important!')
+        self.assertEqual(item.title, 'Sleep')
         self.assertEqual(item.text, 'Very important!')
 
     def test_check(self):
@@ -122,3 +126,55 @@ class ItemTest(ListlingTestCase):
         item.check()
         item.uncheck()
         self.assertFalse(item.checked)
+
+    def test_assign_user_not_list_user(self):
+        item = self.make_item()
+        user = self.app.login()
+        user.edit(name='Happy')
+        item.assign(['Happy'])
+        self.assertEqual(item.assignees, [user])
+        self.assertIn(user, item.list.users)
+
+    def test_assign(self):
+        item = self.make_item()
+        item.assign([self.app.user.name, 'Happy'])
+        self.assertEqual([(u.id, u.name) for u in item.assignees],
+                         [(self.app.user.id, self.app.user.name), (None, 'Happy')])
+        self.assertEqual([(u.id, u.name) for u in item.list.activity[0].detail['added']],
+                         [(self.app.user.id, self.app.user.name), (None, 'Happy')])
+
+    def test_assign_item_has_assignees(self):
+        item = self.make_item()
+        user2 = self.app.login()
+        user2.edit(name='Happy')
+        item.list.edit()
+
+        item.assign([self.user.name, user2.name])
+        item.assign([user2.name, 'Grumpy'])
+
+        self.assertEqual([(u.id, u.name) for u in item.assignees],
+                         [(user2.id, 'Happy'), (None, 'Grumpy')])
+        event = item.list.activity[0]
+        self.assertEqual(event.type, 'item-assign')
+        self.assertEqual([(u.id, u.name) for u in event.detail['added']], [(None, 'Grumpy')])
+        # TODO why do two equal users not compare????
+        #self.assertEqual(event.detail['removed'], [self.user])
+
+        #item.assign([self.staff_member, self.user])
+        #item.assign([self.user, Item.make_anonymous('Happy', self.app)])
+        #self.assertEqual(Item.get_user_ids(item.assignees), [self.user.id, 'str:Happy'])
+        #event = item.list.activity[0]
+        #self.assertEqual(event.type, 'item-assign')
+        #self.assertEqual(Item.get_user_ids(event.detail['added']), ['str:Happy'])
+        #self.assertEqual(Item.get_user_ids(event.detail['removed']), [self.staff_member.id])
+
+class ActivityTest(ListlingTestCase):
+    def test_publish(self):
+        from listling.listling import Activity
+        from micro import Event
+        calls = []
+        activity = Activity('more_activity', app=self.app)
+        activity.subscribe_live(lambda *a: calls.append(a))
+        event = Event.create('meow', None, app=self.app)
+        activity.publish(event)
+        self.assertEqual(calls, [(event, )])

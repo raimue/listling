@@ -154,3 +154,9 @@ Item
    returned.
 
    Permission: Authenticated users.
+
+.. http:post: /api/lists/(list-id)/items/(id)/assign
+
+   ``{user_ids}}``
+
+   *user_ids* list of ids, special value 'str:' following a name to display.

@@ -1,0 +1,152 @@
+<script>
+    this._data = new micro.bind.Watchable({
+        item: null,
+        list: null
+        getUserName: user => user.name
+        makeUser: text => {name: text}
+    });
+
+    set item(value) {
+        this._data.item = value;
+    }
+
+    set list(value) {
+        this._data.list = value;
+    }
+</script>
+
+<micro-list-input data-value="item.assignees" data-options="list.users" data-key="getUserName"
+                  data-make="makeUser">
+    <template><micro-user data-user="item"></micro-user></template>
+</micro-list-input>
+
+----
+
+<script>
+    this._data = new micro.bind.Watchable({
+        value: null,
+        options: null,
+        key: item => item,
+        make: text => text,
+        text: "",
+        template: this.querySelector("template"),
+
+        filterOptions: (arr, text, key) => {
+            arr = arr.filter(item => {
+                let itemKey = key(item);
+                return itemKey.includes(text) &&
+                       !this._data.value.find(other => key(other) === itemKey);
+            });
+            if (text && !arr.find(item => key(item) === text)) {
+                arr.unshift(make(text));
+            }
+            return arr;
+        },
+
+        addItem: item => {
+            this._data.value.push(item);
+        },
+
+        removeItem: item => {
+            let itemKey = key(item);
+            this._data.value.splice(this._data.value.findIndex(other => key(other) === itemKey), 1);
+        },
+
+        updateText: event => {
+            this._data.text = event.target.value;
+        },
+
+        handleKeys: event => {
+            switch(event.keyCode) {
+            case KEY_ENTER:
+                // TODO: filter options on change event and use directly in template (so we can also
+                // use it here)
+                let item = this._data.filterOptions(this._data.options, this._data.text, this._data.key)[0];
+                if (item) {
+                    this._data.addItem(item);
+                    event.target.value = "";
+                    this._data.text = "";
+                }
+                break;
+            case KEY_BACKSPACE:
+                // TODO: if cursor in first position
+                this._data.value.pop();
+                break;
+            }
+        },
+
+        focus: () => {
+            this.classList.add("micro-input-wrapper-focus");
+        }
+
+        blur: () => {
+            this.classList.remove("micro-input-wrapper-focus");
+        }
+    });
+
+    this.classList.add("micro-input-wrapper");
+    this.onclick = this.focus.bind(this);
+
+    focus() {
+        this.querySelector("input").focus();
+    }
+
+    set value(value) {
+        this._data.value = new micro.bind.Watchable(value.slice());
+    }
+
+    set options(value) {
+        this._data.options = value;
+        this.classList.toggle("micro-list-input-has-options", value && value.length > 0);
+    }
+
+    set key(value) {
+        this._data.key = value;
+    }
+
+    set make(value) {
+        this._data.make = value;
+    }
+</script>
+
+<template class="micro-list-input-template">
+    <div data-content="list value 'item'">
+        <template>
+            <span data-onclick="bind removeItem item">
+                <i class="fa fa-x"></i> <span data-content="include template"></span>
+            </span>
+        </template>
+    </div>
+    <input type="text" data-onchange="updateText" data-onkeypress="handleKeys"
+           data-onfocus="focus" />
+    <ul data-content="list options 'item' filterOptions text key">
+        <template>
+            <li data-onclick="bind addItem item" data-content="include template"></li>
+        </template>
+    </ul>
+</template>
+
+<style>
+    micro-list-input:not(micro-list-input-has-options) ul {
+        display: none;
+    }
+</style>
+
+----
+
+<script>
+    bind(ctx, func, ...args) {
+        return func.bind(...args);
+    }
+
+    include(ctx, elem) {
+        if (typeof elem === "string") {
+            elem = document.querySelector(elem);
+        }
+        if (elem instanceof HTMLTemplateElement) {
+            elem = document.importNode(elem.content, true);
+        }
+        micro.bind.bind(elem, ctx.data);
+        return elem;
+    }
+</script>

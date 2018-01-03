@@ -48,3 +48,5 @@ class ServerTest(ServerTestCase):
                            body='')
         await self.request('/api/lists/{}/items/{}/uncheck'.format(lst.id, item.id), method='POST',
                            body='')
+        await self.request('/api/lists/{}/items/{}/assign'.format(lst.id, item.id), method='POST',
+                           body='{"names": ["Happy"]}')
