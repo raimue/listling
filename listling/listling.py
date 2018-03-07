@@ -22,7 +22,7 @@ from micro.util import randstr, str_or_none
 
 _USE_CASES = {
     'simple': {'title': 'New list', 'features': []},
-    'todo': {'title': 'New to-do list', 'features': ['check']},
+    'todo': {'title': 'New to-do list', 'features': ['check', 'assign']},
     'shopping': {'title': 'New shopping list', 'features': []},
     'meeting-agenda': {'title': 'New meeting agenda', 'features': []}
 }
@@ -157,13 +157,15 @@ class Listling(Application):
         if version < 3:
             lists = r.omget(r.lrange('lists', 0, -1))
             for lst in lists:
-                user_ids = lst['authors']
+                if 'check' in lst['features']:
+                    lst['features'].append('assign')
+                user_ids = set(lst['authors'])
                 items = r.omget(r.lrange('{}.items'.format(lst['id']), 0, -1))
                 for item in items:
                     item['assignee_ids'] = []
-                    user_ids += item['authors']
+                    user_ids |= set(item['authors'])
                 r.omset({item['id']: item for item in items})
-                lst['user_ids'] = user_ids
+                lst['user_ids'] = list(user_ids)
             r.omset({lst['id']: lst for list in lists})
             r.set('version', 3)
 
@@ -209,7 +211,7 @@ class List(Object, Editable):
     def do_edit(self, **attrs):
         if 'title' in attrs and str_or_none(attrs['title']) is None:
             raise micro.ValueError('title_empty')
-        if 'features' in attrs and not set(attrs['features']) <= {'check'}:
+        if 'features' in attrs and not set(attrs['features']) <= {'check', 'assign'}:
             raise micro.ValueError('feature_unknown')
         if 'title' in attrs:
             self.title = attrs['title']
@@ -286,6 +288,7 @@ class Item(Object, Editable, Trashable):
 
     def assign(self, names):
         """See :http:post:`/api/lists/(list-id)/items/(id)/assign`."""
+        _check_feature(self.app.user, 'assign', self)
 
         #old = set(tuple(i.split(':', 1)) for i in self._assignee_ids)
         #new = [

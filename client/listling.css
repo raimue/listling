@@ -22,8 +22,18 @@ html {
 }
 
 .micro-input-wrapper {
-    padding: calc(0.25 * 1.5em);
-    border: 1px solid #bbb;
+    display: inline-block;
+    padding: calc(1.5em / 4);
+    border: 1px solid var(--micro-color-border);
+}
+
+.micro-input-wrapper:focus-within {
+    box-shadow: var(--micro-focus-shadow);
+}
+
+label > .micro-input-wrapper {
+    display: block;
+    width: 100%;
 }
 
 .micro-input-wrapper input {
@@ -31,11 +41,6 @@ html {
     border: none;
 }
 
-.micro-input-wrapper select {
-    margin-top: calc(1.5rem / 4);
-}
-
-label > .micro-input-wrapper {
-    display: block;
-    width: 100%;
+.micro-input-wrapper input:focus {
+    box-shadow: none;
 }

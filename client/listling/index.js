@@ -22,6 +22,189 @@
 
 window.listling = {};
 
+/**
+ * TODO
+ */
+micro.bind.transforms.render = function(ctx, template, defaultContent) {
+    if (typeof template === "string") {
+        template = document.querySelector(template);
+    }
+    if (!template) {
+        console.log("defaultcontent");
+        return defaultContent;
+    }
+    let elem = document.importNode(template.content, true);
+    micro.bind.bind(elem, ctx.data);
+    return elem;
+};
+
+/**
+ * TODO.
+ */
+micro.ListInput = class extends HTMLElement {
+    createdCallback() {
+        this.appendChild(
+            document.importNode(document.querySelector("#micro-list-input-template").content,
+                                true));
+        this._data = new micro.bind.Watchable({
+            value: new micro.bind.Watchable([]),
+            //value: [],
+            options: ["Hallo", "Lustig", "Ja"],
+            currentOptions: ["Hallo", "Lustig", "Ja"],
+            template: this.querySelector("micro-list-input > template"),
+            text: "",
+
+            /*micro.bind.concat(arr, other) {
+                let concated = new micro.bind.Watchable([]);
+                arr.watch(Symbol("+"), (prop, i) => concated.splice(i, 0, arr[i]));
+                arr.watch(Symbol("-"), (prop, i) => concated.splice(i, 1));
+                arr.watch(Symbol("*"), (prop, i) => concated[i] = arr[i]);
+                other.watch(Symbol("+"), (prop, i) => concated.splice(i + arr.length, 0, other[i]));
+                other.watch(Symbol("-"), (prop, i) => concated.splice(i + arr.length, 1));
+                other.watch(Symbol("*"), (prop, i) => concated[i + arr.length] = other[i]);
+                return concated;
+            },
+
+            micro.bind.filter(arr, callback, refresh) {
+                // ...
+                function r() {
+                    arr.forEach(i, value => onStar(i, value));
+                }
+                refresh.watch(Symbol("+"), r);
+                refresh.watch(Symbol("-"), r);
+                refresh.watch(Symbol("*"), r);
+                // ...
+            },*/
+
+            /*
+                this._data.currentOptions = micro.bind.concat(
+                    this._data.textAmend,
+                    micro.bind.filter(arr, option => !this._data.value.includes(option), this._data.value));
+                // onchange
+                if (value.includes(text) {
+                    textAmend.pop();
+                } else {
+                    textAmend.splice(0, 1, text);
+                }
+            */
+
+            add: item => {
+                let input = this.querySelector("input");
+                input.value = "";
+                this._data.text = "";
+                setTimeout(() => input.focus()); // XXX
+
+                this._data.value.push(item);
+                this._compileOptions();
+            },
+
+            remove: item => {
+                this._data.value.splice(this._data.value.indexOf(item), 1);
+                this._compileOptions();
+                this.querySelector("input").focus();
+            },
+
+            updateText: event => {
+                this._data.text = event.target.value;
+                this._compileOptions();
+            },
+
+            handleKeys: event => {
+                switch(event.key) {
+                case "Enter":
+                case "Tab":
+                    if (this._data.text) {
+                        event.preventDefault();
+                        this._data.add(this._data.text);
+                    }
+                    break;
+                case "Backspace":
+                    if (event.target.selectionStart === 0) {
+                        // let item = this._data.value.pop(); TODO
+                        let [item] = this._data.value.splice(this._data.value.length - 1, 1);
+                        if (item) {
+                            event.target.value = item;
+                            this._data.text = item;
+                        }
+                        this._compileOptions();
+                    }
+                    break;
+                }
+            }
+        });
+        micro.bind.bind(this.children, this._data);
+        this.classList.add("micro-input-wrapper");
+    }
+
+    get value() {
+        this._data.value;
+    }
+
+    set value(value) {
+        this._data.value = new micro.bind.Watchable(value.slice());
+        this._compileOptions();
+    }
+
+    _compileOptions() {
+        let arr = this._data.options.filter(
+            o => o.includes(this._data.text) && !this._data.value.includes(o));
+        /*if (this._data.text && !this._data.value.includes(this._data.text)) {
+            arr.unshift(this._data.text);
+        }*/
+        this._data.currentOptions = arr;
+    }
+};
+document.registerElement("micro-list-input", micro.ListInput);
+
+            /*key: item => item,
+            make: text => text,*/
+    /*set options(value) {
+        this._data.options = value;
+        this.classList.toggle("micro-list-input-has-options", value && value.length > 0);
+    }
+
+    set key(value) {
+        this._data.key = value;
+    }
+
+    set make(value) {
+        this._data.make = value;
+    }*/
+
+                    /*// TODO: filter options on change event and use directly in template (so we can also
+                    // use it here)
+                    let item = this._data.filterOptions(this._data.options, this._data.text, this._data.key)[0];
+                    if (item) {
+                        this._data.add();
+                    }*/
+            // data-onchange="updateText"
+            /*updateText: event => {
+                this._data.text = event.target.value;
+            },*/
+            /*compileOptions: (arr, text, key) => {
+                arr = arr.filter(item => {
+                    let itemKey = key(item);
+                    return itemKey.includes(text) &&
+                           !this._data.value.find(other => key(other) === itemKey);
+                });
+                if (text && !arr.find(item => key(item) === text)) {
+                    arr.unshift(make(text));
+                }
+                return arr;
+            },*/
+
+    // data-onfocus="focus"
+    /*focus: () => {
+        this.classList.add("micro-input-wrapper-focus");
+    }
+    blur: () => {
+        this.classList.remove("micro-input-wrapper-focus");
+    }*/
+    //this.onclick = this.focus.bind(this);
+    /*focus() {
+        this.querySelector("input").focus();
+    }*/
+
 listling.makeListURL = function(ctx, lst) {
     if (lst === undefined) {
         [ctx, lst] = [undefined, ctx];
@@ -168,7 +351,7 @@ listling.ListPage = class extends micro.Page {
                 let list = await micro.call("POST", url, {
                     title: this._form.elements.title.value,
                     description: this._form.elements.description.value,
-                    features: Array.from([this._form.elements.features], e => e.checked && e.value)
+                    features: Array.from(this._form.elements.features, e => e.checked && e.value)
                         .filter(feature => feature)
                 });
                 if (this._data.lst) {
@@ -222,8 +405,10 @@ listling.ListPage = class extends micro.Page {
             this.classList.toggle("listling-list-has-trashed-items", this._data.trashedItemsCount);
             this.classList.toggle("listling-list-mode-view", !this._data.editMode);
             this.classList.toggle("listling-list-mode-edit", this._data.editMode);
-            this.classList.toggle("listling-list-feature-check",
-                                  this._data.lst && this._data.lst.features.includes("check"));
+            ["check", "assign"].forEach(feature => {
+                this.classList.toggle(`listling-list-feature-${feature}`,
+                                      this._data.lst && this._data.lst.features.includes(feature));
+            });
         };
         ["lst", "editMode", "trashedItemsCount"].forEach(
             prop => this._data.watch(prop, updateClass));
@@ -294,55 +479,56 @@ listling.ListPage = class extends micro.Page {
     }
 };
 
+/**
+ * TODO.
+ */
 listling.AssignNotification = class extends HTMLElement {
     createdCallback() {
         this.appendChild(
             document.importNode(ui.querySelector(".listling-assign-notification-template").content,
                                 true));
+        this._data = new micro.bind.Watchable({
+            item: null,
+
+            assign: async() => {
+                let input = this._form.elements.names;
+                let assignees = this._data.item.assignees.concat({id: null, name: input.value});
+                input.value = "";
+                let item = await micro.call(
+                    "POST",
+                    `/api/lists/${this._data.item.list_id}/items/${this._data.item.id}/assign`,
+                    {names: assignees.map(u => u.name)});
+                ui.dispatchEvent(new CustomEvent("item-assign", {detail: {item}}));
+                this._data.close();
+            },
+
+            close: () => {
+                this.remove();
+
+                /* TODO: Move to micro */
+                ui.querySelector("main").style.filter = "";
+                ui.querySelector("main").style.pointerEvents = "";
+            }
+        });
+        micro.bind.bind(this.children, this._data);
         this.classList.add("micro-notification");
-
-        let close = () => {
-            this.remove();
-            ui.querySelector("main").style.filter = "";
-            ui.querySelector("main").style.pointerEvents = "";
-        };
-
-        this.querySelector("button:not([type])").run = async () => {
-            let input = this._form.elements.names;
-            this._assignees.push({id: null, name: input.value});
-            input.value = "";
-            let item = await micro.call(
-                "POST", `/api/lists/${this._item.list_id}/items/${this._item.id}/assign`,
-                {names: this._assignees.map(u => u.name)});
-            ui.dispatchEvent(new CustomEvent("item-assign", {detail: {item}}));
-            close();
-        };
-
-        this.querySelector(".action-cancel").run = close;
-
         this._form = this.querySelector("form");
-        this._item = null;
-
-        ui.querySelector("main").style.filter = "blur(1px) opacity(50%)";
-        ui.querySelector("main").style.pointerEvents = "none";
     }
 
     attachedCallback() {
         this._form.elements.names.focus();
+
+        /* TODO: Move to micro */
+        ui.querySelector("main").style.filter = "blur(1px) opacity(50%)";
+        ui.querySelector("main").style.pointerEvents = "none";
     }
 
     get item() {
-        return this._item;
+        return this._data.item;
     }
 
     set item(value) {
-        this._item = value;
-        this._assignees = new micro.bind.Watchable(this._item.assignees);
-        this.querySelector("h1").textContent = `Assign item ${this._item.title}`;
-        let span = this.querySelector("label > span > span");
-        let fragment = micro.bind.list(span, this._assignees, "user");
-        span.textContent = "";
-        span.appendChild(fragment);
+        this._data.item = value;
     }
 }
 

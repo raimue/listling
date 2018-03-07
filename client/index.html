@@ -16,48 +16,42 @@
 
     <template class="listling-assign-notification-template">
         <div class="micro-ui-inside">
-            <h1>Assign to item</h1>
-            <form>
-            <label>
-                <span class="micro-input-wrapper">
-                    <i class="fa fa-minus-circle"></i>
-                    <span>
-                        <template>
-                            <micro-user></micro-user>
-                        </template>
+            <h1 data-content="format 'Assign item {title}' 'title' item.title"></h1>
+            <form data-shortcut-context="new ShortcutContext">
+                <label>
+                    <span class="micro-input-wrapper">
+                        <i class="fa fa-minus-circle"></i>
+                        <span data-content="list item.assignees 'user'">
+                            <!-- TODO: list multiple elements / whitespace -->
+                            <template><span><micro-user data-user="user"></micro-user> </span></template>
+                        </span>
+                        <!--<i class="fa fa-minus-circle"></i> <micro-user>Sven</micro-user>-->
+                        <span style="display: inline-block; position: relative;">
+                            <input name="names" listx="contributors" />
+                        </span>
                     </span>
-                    <!--<i class="fa fa-minus-circle"></i> <micro-user>Sven</micro-user>-->
-                    <span style="display: inline-block; position: relative;">
-                        <input name="names" listx="contributors" />
-                        <!--<select style="display: block; position: absolute;" multiple="multiple" id="contributors">
-                            <option>Hello</option>
-                            <option>Bye</option>
-                            <option>Lalala</option>
-                            <option>Hello 2</option>
-                            <option>Bye 2</option>
-                            <option>Lalala 2</option>
-                        </select>-->
-                    </span>
-                </span>
-            </label>
-            <datalist id="contributors">
-                <option>Hello</option>
-                <option>Bye</option>
-                <option>Lalala</option>
-                <option>Hello 2</option>
-                <option>Bye 2</option>
-                <option>Lalala 2</option>
-            </datalist>
-            <ul is="micro-menu">
-                <li>
-                    <button is="micro-button" class="action">
-                        <i class="fa fa-check-circle"></i> Done
-                    </button>
-                </li>
-                <li>
-                    <button is="micro-button" type="button" class="link action-cancel">Cancel</button>
-                </li>
-            </ul>
+                </label>
+                <datalist id="contributors">
+                    <option>Hello</option>
+                    <option>Bye</option>
+                    <option>Lalala</option>
+                    <option>Hello 2</option>
+                    <option>Bye 2</option>
+                    <option>Lalala 2</option>
+                </datalist>
+                <ul is="micro-menu">
+                    <li>
+                        <button is="micro-button" class="action" title="⌨ Enter" data-run="assign">
+                            <i class="fa fa-check-circle"></i> Done
+                        </button>
+                    </li>
+                    <li>
+                        <button is="micro-button" type="button" class="link action-cancel"
+                                data-run="close" data-shortcut="new Shortcut 'Escape'">
+                            Cancel
+                        </button>
+                    </li>
+                </ul>
             </form>
         </div>
     </template>
@@ -225,7 +219,89 @@
         </micro-about-page>
     </template>
 
+    <template id="micro-list-input-template">
+        <div data-content="list value 'item'">
+            <template>
+                <button is="micro-button" type="button" class="action action-subtle" tabindex="-1"
+                        data-run="bind remove item">
+                    <i class="fa fa-minus-circle"></i>
+                    <span data-content="render template item"></span>
+                </button>
+            </template>
+        </div>
+        <input type="text" data-onkeydown="handleKeys" data-oninput="updateText" />
+        <ul data-content="list currentOptions 'item'" class="micro-expandable">
+            <template>
+                <li data-onmousedown="bind add item" data-content="render template item"></li>
+            </template>
+        </ul>
+    </template>
+    <style>
+        micro-list-input {
+            position: relative;
+        }
+
+        micro-list-input input {
+            display: block;
+            width: 100%;
+        }
+
+        micro-list-input .action {
+            color: inherit;
+            margin-right: 1ch; /* TODO space */
+        }
+
+        micro-list-input .action > i {
+            color: var(--micro-color-primary);
+            font-size: 0.75em;
+        }
+
+        micro-list-input > ul {
+            list-style: none;
+            padding: calc(1.5em / 4);
+        }
+
+        micro-list-input > ul > li {
+            cursor: pointer;
+        }
+
+        .micro-expandable {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 100%;
+            z-index: 1;
+            margin: 0;
+            box-shadow: 0 2px 2px rgba(0, 0, 0, 0.33);
+            background: white;
+        }
+
+        /* TODO wont work in IE */
+        micro-list-input:focus-within .micro-expandable {
+            display: block;
+        }
+    </style>
+
+        <!--<ul data-content="list options 'item' compileOptions text key">
+            <template>
+                <li data-onclick="bind add item" data-content="include template"></li>
+            </template>
+        </ul>
+    <style>
+        micro-list-input:not(micro-list-input-has-options) ul {
+            display: none;
+        }
+    </style>-->
+
     <template class="listling-list-page-template">
+        <p>
+        <label>
+            <!--<micro-list-input><template><span
+            data-content="item"></span></template></micro-list-input>-->
+            <micro-list-input></micro-list-input>
+        </label>
+        </p>
+
         <form>
             <header>
                 <h1>
@@ -285,6 +361,11 @@
                             <input type="checkbox" name="features" value="check"
                                    data-checked="includes lst.features 'check'" />
                             Check items
+                        </label>
+                        <label>
+                            <input type="checkbox" name="features" value="assign"
+                                   data-checked="includes lst.features 'assign'" />
+                            Assign items
                         </label>
                     </fieldset>
                 </section>
@@ -461,9 +542,14 @@
                                     <i class="fa fa-pencil"></i> Edit
                                 </button>
                             </li>
-                            <li>
-                                <button is="micro-button" type="button"
-                                        class="listling-item-assign action" data-run="startAssign">
+                            <li class="listling-item-assign">
+                                <button
+                                    is="micro-button"
+                                    type="button"
+                                    class="action"
+                                    data-run="startAssign"
+                                    data-shortcut="new Shortcut 'A'"
+                                >
                                     <i class="fa fa-id-badge"></i> Assign
                                 </button>
                             </li>
@@ -591,12 +677,14 @@
             margin: calc(1.5rem / 4) 0;
         }
 
-        [is=listling-item]:not(.listling-item-assigned) .listling-item-assignees,
         [is=listling-item]:not(.listling-item-mode-view) .listling-item-mode-view,
         [is=listling-item]:not(.listling-item-mode-edit) .listling-item-mode-edit,
         [is=listling-item].listling-item-trashed .micro-ol-handle,
         listling-list-page:not(.listling-list-feature-check) .listling-item-check,
         listling-list-page:not(.listling-list-feature-check) .listling-item-uncheck,
+        listling-list-page:not(.listling-list-feature-assign) .listling-item-assign,
+        listling-list-page:not(.listling-list-feature-assign) .listling-item-assignees,
+        [is=listling-item]:not(.listling-item-assigned) .listling-item-assignees,
         [is=listling-item]:not(.listling-item-trashed) .listling-item-restore,
         [is=listling-item].listling-item-trashed .listling-item-menu li:last-child {
             display: none;

@@ -1,5 +1,4 @@
-# CONTINUE: wrapper UI
-# OQ: how to insert delete button with current binding?
+# OQ why does clicking the input wrapper also click the item / remove button?
 
 class List:
     """

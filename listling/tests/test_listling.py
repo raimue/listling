@@ -26,9 +26,14 @@ from listling import Listling
 app = Listling(redis_url='15')
 app.r.flushdb()
 app.update()
-app.login()
+user = app.login()
+user.edit(name='Happy')
 # Compatibility for missing todo use case (deprecated since 0.3.0)
-app.lists.create_example('shopping')
+lst = app.lists.create_example('shopping')
+item = next(iter(lst.items.values()))
+user = app.login()
+user.edit(name='Grumpy')
+item.edit(text='TODO')
 """
 
 class ListlingTestCase(AsyncTestCase):
@@ -86,6 +91,11 @@ class ListlingUpdateTest(AsyncTestCase):
         self.assertFalse(lst.features)
         self.assertFalse(item.checked)
 
+        # Update to version 3
+        self.assertEqual(set(u.name for u in lst.users), {'Happy', 'Grumpy'})
+        self.assertFalse(lst.features)
+        self.assertFalse(item.assignees)
+
 class ListTest(ListlingTestCase):
     def test_edit(self):
         lst = self.app.lists.create(v=2)
@@ -128,7 +138,7 @@ class ItemTest(ListlingTestCase):
         self.assertFalse(item.checked)
 
     def test_assign_user_not_list_user(self):
-        item = self.make_item()
+        item = self.make_item('todo')
         user = self.app.login()
         user.edit(name='Happy')
         item.assign(['Happy'])
@@ -136,7 +146,7 @@ class ItemTest(ListlingTestCase):
         self.assertIn(user, item.list.users)
 
     def test_assign(self):
-        item = self.make_item()
+        item = self.make_item('todo')
         item.assign([self.app.user.name, 'Happy'])
         self.assertEqual([(u.id, u.name) for u in item.assignees],
                          [(self.app.user.id, self.app.user.name), (None, 'Happy')])
@@ -144,7 +154,7 @@ class ItemTest(ListlingTestCase):
                          [(self.app.user.id, self.app.user.name), (None, 'Happy')])
 
     def test_assign_item_has_assignees(self):
-        item = self.make_item()
+        item = self.make_item('todo')
         user2 = self.app.login()
         user2.edit(name='Happy')
         item.list.edit()
