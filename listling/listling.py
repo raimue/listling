@@ -17,8 +17,11 @@
 import micro
 from micro import (Activity, Application, Collection, Editable, Object, Orderable, Trashable,
                    Settings, Event)
-from micro.jsonredis import JSONRedis
+from micro.jsonredis import JSONRedis, JSONRedisSequence, RedisSortedSet
 from micro.util import randstr, str_or_none
+
+from micro import User
+from time import time
 
 _USE_CASES = {
     'simple': {'title': 'New list', 'features': []},
@@ -88,7 +91,7 @@ class Listling(Application):
                 features=data['features'],
                 activity=Activity('{}.activity'.format(id), self.app, subscriber_ids=[]))
             self.app.r.oset(lst.id, lst)
-            self.app.r.rpush(self.map_key, lst.id)
+            self.app.r.rpush(self.collection.key, lst.id)
             self.app.activity.publish(
                 Event.create('create-list', None, {'lst': lst}, app=self.app))
             return lst
@@ -172,10 +175,14 @@ class List(Object, Editable):
                 trashed=False, list_id=self.host[0].id, title=title, text=str_or_none(text),
                 checked=False)
             self.app.r.oset(item.id, item)
-            self.app.r.rpush(self.map_key, item.id)
+            self.app.r.rpush('items', item.id)
+            self._update(item)
             self.host[0].activity.publish(
                 Event.create('list-create-item', self.host[0], {'item': item}, self.app))
             return item
+
+        def _update(self, item) -> None:
+            self.app.r.zadd('items_by_votes', len(item.votes), item.id)
 
     def __init__(self, id, app, authors, title, description, features, activity):
         super().__init__(id, app)
@@ -183,9 +190,13 @@ class List(Object, Editable):
         self.title = title
         self.description = description
         self.features = features
-        self.items = List.Items((self, 'items'))
         self.activity = activity
         self.activity.host = self
+
+    @property
+    def items(self):
+        return (List.Items((self, 'items_by_votes')) if 'vote' in self.features else
+                List.Items((self, 'items')))
 
     def do_edit(self, **attrs):
         if 'title' in attrs and str_or_none(attrs['title']) is None:
@@ -209,10 +220,27 @@ class List(Object, Editable):
             'activity': self.activity.json(restricted)
         }
 
+# TODO https://github.com/noyainrain/micro/wiki#collection-with-meta-data
+class Sequence(JSONRedisSequence):
+    def __init__(self, seq, count):
+        super().__init__(seq)
+        self.count = count
+        self.host = None
+
+    def _update(self):
+        self.count = len(self.seq)
+        self.r.oset(self.host.id, self.host)
+
+    def json(self, restricted=False, include=False, slice=None):
+        return {
+            'count': self.count,
+            **({'items': item.json(True, True) for item in self[slice]} if slice else {})
+        }
+
 class Item(Object, Editable, Trashable):
     """See :ref:`Item`."""
 
-    def __init__(self, id, app, authors, trashed, list_id, title, text, checked):
+    def __init__(self, id, app, authors, trashed, list_id, title, text, checked, votes):
         super().__init__(id, app)
         Editable.__init__(self, authors, lambda: self.list.activity)
         Trashable.__init__(self, trashed, lambda: self.list.activity)
@@ -220,6 +248,9 @@ class Item(Object, Editable, Trashable):
         self.title = title
         self.text = text
         self.checked = checked
+        #self.votes = JSONRedisSequence(RedisSortedSet(app.r, '{}.votes'.format(id)))
+        self.votes = Sequence(RedisSortedSet(app.r, '{}.votes'.format(id), **votes))
+        #self.votes.host = self
 
     @property
     def list(self):
@@ -240,6 +271,16 @@ class Item(Object, Editable, Trashable):
         self.app.r.oset(self.id, self)
         self.list.activity.publish(Event.create('item-uncheck', self, app=self.app))
 
+    def vote(self, user: User) -> None:
+        self.app.r.zadd(self.votes.key, time(), user.id)
+        self.votes._update()
+        self.list.Items._update()
+
+    def unvote(self, user: User) -> None:
+        self.app.r.zrem(self.votes.key, user.id)
+        self.votes._update()
+        self.list.Items._update()
+
     def do_edit(self, **attrs):
         if 'title' in attrs and str_or_none(attrs['title']) is None:
             raise micro.ValueError('title_empty')
@@ -256,7 +297,8 @@ class Item(Object, Editable, Trashable):
             'list_id': self._list_id,
             'title': self.title,
             'text': self.text,
-            'checked': self.checked
+            'checked': self.checked,
+            'votes': self.votes.json()
         }
 
 def _check_feature(user, feature, item):
