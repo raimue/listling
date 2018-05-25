@@ -182,7 +182,7 @@ class List(Object, Editable):
             return item
 
         def _update(self, item) -> None:
-            self.app.r.zadd('items_by_votes', len(item.votes), item.id)
+            self.app.r.zadd('items_by_votes', item.votes.count, item.id)
 
     def __init__(self, id, app, authors, title, description, features, activity):
         super().__init__(id, app)
@@ -220,22 +220,40 @@ class List(Object, Editable):
             'activity': self.activity.json(restricted)
         }
 
-# TODO https://github.com/noyainrain/micro/wiki#collection-with-meta-data
-class Sequence(JSONRedisSequence):
-    def __init__(self, seq, count):
-        super().__init__(seq)
+class Collection:
+    """
+    .. describe:: count
+
+       Number of items in the collection (that are not trashed).
+    """
+
+    def __init__(self, key: Union[str, Object], collection: RedisSequence, count: int,
+                 app: Application) -> None:
+        self.key, self.host = None, key if isinstance(key, Object) else key, None
+        # self.key = key
         self.count = count
-        self.host = None
 
-    def _update(self):
-        self.count = len(self.seq)
-        self.r.oset(self.host.id, self.host)
+    def update(self) -> None:
+        self.count = len(self.collection)
+        self.app.r.oset(self.host.id if self.host else self.key, self.host or self)
+        #self.app.r.oset(*(key.id, key if isinstance(key, Object) else key, self))
 
-    def json(self, restricted=False, include=False, slice=None):
+    def json(self, restricted: bool = False, include: bool = False,
+             slice: slice = None) -> Dict[str, Any]:
         return {
             'count': self.count,
-            **({'items': item.json(True, True) for item in self[slice]} if slice else {})
+            **({'items': item.json(True, True) for item in self.collection[slice]} if slice else {})
         }
+
+    class Sequence(Collection, JSONRedisSequence):
+        def __init__(self, key, collection, count, app):
+            super().__init__(key, collection, count, app)
+            JSONRedisSequence.__init__(collection)
+
+    class Mapping(Collection, JSONRedisMapping):
+        def __init__(self, key, collection, count, app):
+            super().__init__(self, key, collection, count, app)
+            JSONRedisMapping.__init__(collection)
 
 class Item(Object, Editable, Trashable):
     """See :ref:`Item`."""
@@ -249,7 +267,10 @@ class Item(Object, Editable, Trashable):
         self.text = text
         self.checked = checked
         #self.votes = JSONRedisSequence(RedisSortedSet(app.r, '{}.votes'.format(id)))
-        self.votes = Sequence(RedisSortedSet(app.r, '{}.votes'.format(id), **votes))
+        self.users = Collection.Mapping('users', RedisSortedSet(app.r, 'users.items'), app=app,
+                                        **self.app.r.oget('users'))
+        self.votes = Collection.Sequence(self, RedisSortedSet(app.r, '{}.votes'.format(id)),
+                                         app=app, **votes)
         #self.votes.host = self
 
     @property
@@ -272,14 +293,14 @@ class Item(Object, Editable, Trashable):
         self.list.activity.publish(Event.create('item-uncheck', self, app=self.app))
 
     def vote(self, user: User) -> None:
-        self.app.r.zadd(self.votes.key, time(), user.id)
-        self.votes._update()
-        self.list.Items._update()
+        self.app.r.zadd(self.votes.collection.key, time(), user.id)
+        self.votes.update()
+        self.list.items._update(self)
 
     def unvote(self, user: User) -> None:
-        self.app.r.zrem(self.votes.key, user.id)
-        self.votes._update()
-        self.list.Items._update()
+        self.app.r.zrem(self.votes.collection.key, user.id)
+        self.votes.update()
+        self.list.items._update(self)
 
     def do_edit(self, **attrs):
         if 'title' in attrs and str_or_none(attrs['title']) is None:
