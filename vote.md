@@ -1,3 +1,19 @@
+# Votes
+
+* How to make combine Object and Meta (e.g. for Activity)
+```
+class Blubbs(Object, CollectionSeq):
+  def __init__(self, id, app, count):
+    super().__init__(id, app)
+    CollectionSeq.__init__(self, self, Collection.Meta(count, app), RedisList(app.r, id+'.foo'), app)
+
+  def json(self, r, i, s):
+    return {
+      **super().json(r, i),
+      **CollectionSeq.json(self, r, i)
+    }
+```
+
 # Auto sorting
 
 ```

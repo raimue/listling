@@ -15,13 +15,69 @@
 """Open Listling core."""
 
 import micro
-from micro import (Activity, Application, Collection, Editable, Object, Orderable, Trashable,
-                   Settings, Event)
-from micro.jsonredis import JSONRedis, JSONRedisSequence, RedisSortedSet
+from micro import (Activity, Application, Editable, Object, Orderable, Trashable, Settings, Event)
+from micro.jsonredis import (JSONRedis, JSONRedisSequence, RedisSortedSet, RedisSequence,
+JSONRedisMapping, RedisList)
 from micro.util import randstr, str_or_none
 
 from micro import User
 from time import time
+
+from typing import Any, Dict, Tuple, Union
+
+# TODO move to micro
+class Collection:
+    """
+    .. describe:: count
+
+       Number of items in the collection (that are not trashed).
+    """
+
+    class Meta:
+        def __init__(self, count: int, app: Application) -> None:
+            self.count = count
+
+        def json(self, restricted: bool = False, include: bool = False) -> Dict[str, Any]:
+            return {**({} if restricted else {'__type__': 'Collection.Meta'}), 'count': self.count}
+
+    def __init__(self, key: Union[str, Object], meta: Meta, rcollection: RedisSequence,
+                 app: Application) -> None:
+        # self.key, self.host = None, key if isinstance(key, Object) else key, None
+        self.key = key
+        self.rcollection = rcollection
+        self.meta = meta
+        self.app = app
+
+    @property
+    def count(self) -> int:
+        return self.meta.count
+
+    def update(self) -> None:
+        self.meta.count = len(self.rcollection)
+        # self.app.r.oset(self.host.id if self.host else self.key, self.host or self)
+        if isinstance(self.key, Object):
+            key, object = self.key.id, self.key
+        else:
+            key, object = self.key, self.meta.json()
+        #self.app.r.oset(*(self.key.id, self.key if isinstance(self.key, Object) else self.key, self))
+        self.app.r.oset(key, object)
+
+    def json(self, restricted: bool = False, include: bool = False,
+             slice: slice = None) -> Dict[str, Any]:
+        return {
+            **self.meta.json(restricted),
+            **({'items': item.json(True, True) for item in self.rcollection[slice]} if slice else {})
+        }
+
+class CollectionSeq(Collection, JSONRedisSequence):
+    def __init__(self, key, meta, collection, app):
+        super().__init__(key, meta, collection, app)
+        JSONRedisSequence.__init__(self, collection)
+
+class CollectionMap(Collection, JSONRedisMapping):
+    def __init__(self, key, meta, collection, app):
+        super().__init__(key, meta, collection, app)
+        JSONRedisMapping.__init__(self, collection)
 
 _USE_CASES = {
     'simple': {'title': 'New list', 'features': []},
@@ -63,7 +119,7 @@ _EXAMPLE_DATA = {
 class Listling(Application):
     """See :ref:`Listling`."""
 
-    class Lists(Collection):
+    class Lists(CollectionMap):
         """See :ref:`Lists`."""
 
         def create(self, use_case=None, description=None, title=None, v=1):
@@ -88,10 +144,11 @@ class Listling(Application):
             id = 'List:{}'.format(randstr())
             lst = List(
                 id, self.app, authors=[self.app.user.id], title=data['title'], description=None,
-                features=data['features'],
+                features=data['features'], items = Collection.Meta(0, self.app),
                 activity=Activity('{}.activity'.format(id), self.app, subscriber_ids=[]))
             self.app.r.oset(lst.id, lst)
-            self.app.r.rpush(self.collection.key, lst.id)
+            self.app.r.rpush(self.rcollection.key, lst.id)
+            self.update()
             self.app.activity.publish(
                 Event.create('create-list', None, {'lst': lst}, app=self.app))
             return lst
@@ -118,13 +175,18 @@ class Listling(Application):
     def __init__(self, redis_url='', email='bot@localhost', smtp_url='',
                  render_email_auth_message=None):
         super().__init__(redis_url, email, smtp_url, render_email_auth_message)
-        self.types.update({'List': List, 'Item': Item})
-        self.lists = Listling.Lists((self, 'lists'))
+        self.types.update({'List': List, 'Item': Item, 'Collection.Meta': Collection.Meta})
+
+    @property
+    def lists(self) -> Lists:
+        return Listling.Lists('lists', self.r.oget('lists'), RedisList(self.r, 'lists.items'), app=self)
 
     def do_update(self):
         version = self.r.get('version')
         if not version:
-            self.r.set('version', 3)
+            #Listling.Lists('lists', RedisList(self.r, 'list.items'), 0, self).update()
+            self.r.oset('lists', Collection.Meta(0, self))
+            self.r.set('version', 4)
             return
 
         version = int(version)
@@ -152,6 +214,10 @@ class Listling(Application):
             r.omset({lst['id']: lst for lst in lists})
             r.set('version', 3)
 
+        # TODO move lists -> lists.items, then store lists metadata
+        if version < 4:
+            r.set('version', 4)
+
     def create_settings(self):
         # pylint: disable=unexpected-keyword-arg; decorated
         return Settings(
@@ -163,7 +229,7 @@ class Listling(Application):
 class List(Object, Editable):
     """See :ref:`List`."""
 
-    class Items(Collection, Orderable):
+    class Items(CollectionMap, Orderable):
         """See :ref:`Items`."""
 
         def create(self, title, text=None):
@@ -172,31 +238,32 @@ class List(Object, Editable):
                 raise micro.ValueError('title_empty')
             item = Item(
                 id='Item:{}'.format(randstr()), app=self.app, authors=[self.app.user.id],
-                trashed=False, list_id=self.host[0].id, title=title, text=str_or_none(text),
-                checked=False)
+                trashed=False, list_id=self.key.id, title=title, text=str_or_none(text),
+                checked=False, votes = Collection.Meta(0, self.app))
             self.app.r.oset(item.id, item)
-            self.app.r.rpush('items', item.id)
+            self.app.r.rpush(self.rcollection.key, item.id)
             self._update(item)
-            self.host[0].activity.publish(
-                Event.create('list-create-item', self.host[0], {'item': item}, self.app))
+            self.update()
+            self.key.activity.publish(
+                Event.create('list-create-item', self.key, {'item': item}, self.app))
             return item
 
-        def _update(self, item) -> None:
+        def _update(self, item: 'Item') -> None:
             self.app.r.zadd('items_by_votes', item.votes.count, item.id)
 
-    def __init__(self, id, app, authors, title, description, features, activity):
+    def __init__(self, id, app, authors, title, description, features, items, activity):
         super().__init__(id, app)
         Editable.__init__(self, authors, activity)
         self.title = title
         self.description = description
         self.features = features
+        # TODO: must change if vote is enabled/disabled in features
+        rcollection = (
+            RedisSortedSet(self.app.r, '{}.items_by_votes'.format(self.id))
+            if 'vote' in self.features else RedisList(self.app.r, '{}.items'.format(self.id)))
+        self.items = List.Items(self, items, rcollection, app = self.app)
         self.activity = activity
         self.activity.host = self
-
-    @property
-    def items(self):
-        return (List.Items((self, 'items_by_votes')) if 'vote' in self.features else
-                List.Items((self, 'items')))
 
     def do_edit(self, **attrs):
         if 'title' in attrs and str_or_none(attrs['title']) is None:
@@ -217,43 +284,9 @@ class List(Object, Editable):
             'title': self.title,
             'description': self.description,
             'features': self.features,
+            'items': self.items.json(restricted),
             'activity': self.activity.json(restricted)
         }
-
-class Collection:
-    """
-    .. describe:: count
-
-       Number of items in the collection (that are not trashed).
-    """
-
-    def __init__(self, key: Union[str, Object], collection: RedisSequence, count: int,
-                 app: Application) -> None:
-        self.key, self.host = None, key if isinstance(key, Object) else key, None
-        # self.key = key
-        self.count = count
-
-    def update(self) -> None:
-        self.count = len(self.collection)
-        self.app.r.oset(self.host.id if self.host else self.key, self.host or self)
-        #self.app.r.oset(*(key.id, key if isinstance(key, Object) else key, self))
-
-    def json(self, restricted: bool = False, include: bool = False,
-             slice: slice = None) -> Dict[str, Any]:
-        return {
-            'count': self.count,
-            **({'items': item.json(True, True) for item in self.collection[slice]} if slice else {})
-        }
-
-    class Sequence(Collection, JSONRedisSequence):
-        def __init__(self, key, collection, count, app):
-            super().__init__(key, collection, count, app)
-            JSONRedisSequence.__init__(collection)
-
-    class Mapping(Collection, JSONRedisMapping):
-        def __init__(self, key, collection, count, app):
-            super().__init__(self, key, collection, count, app)
-            JSONRedisMapping.__init__(collection)
 
 class Item(Object, Editable, Trashable):
     """See :ref:`Item`."""
@@ -266,12 +299,7 @@ class Item(Object, Editable, Trashable):
         self.title = title
         self.text = text
         self.checked = checked
-        #self.votes = JSONRedisSequence(RedisSortedSet(app.r, '{}.votes'.format(id)))
-        self.users = Collection.Mapping('users', RedisSortedSet(app.r, 'users.items'), app=app,
-                                        **self.app.r.oget('users'))
-        self.votes = Collection.Sequence(self, RedisSortedSet(app.r, '{}.votes'.format(id)),
-                                         app=app, **votes)
-        #self.votes.host = self
+        self.votes = CollectionSeq(self, votes, RedisSortedSet(app.r, '{}.votes'.format(id)), app=app)
 
     @property
     def list(self):
@@ -319,7 +347,7 @@ class Item(Object, Editable, Trashable):
             'title': self.title,
             'text': self.text,
             'checked': self.checked,
-            'votes': self.votes.json()
+            'votes': self.votes.json(restricted)
         }
 
 def _check_feature(user, feature, item):
