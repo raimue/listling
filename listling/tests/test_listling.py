@@ -19,7 +19,7 @@ from tempfile import mkdtemp
 
 from tornado.testing import AsyncTestCase
 
-from listling import Listling
+from listling import Listling, Item
 
 SETUP_DB_SCRIPT = """\
 from listling import Listling
@@ -98,7 +98,7 @@ class ListTest(ListlingTestCase):
         self.assertIn(item.id, lst.items)
 
 class ItemTest(ListlingTestCase):
-    def make_item(self, use_case='simple'):
+    def make_item(self, use_case: str = 'simple') -> Item:
         return self.app.lists.create(use_case, v=2).items.create('Sleep')
 
     def test_edit(self):
@@ -122,3 +122,34 @@ class ItemTest(ListlingTestCase):
         item.check()
         item.uncheck()
         self.assertFalse(item.checked)
+
+    def test_vote(self) -> None:
+        item = self.make_item('poll')
+        user2 = self.app.login()
+        item.vote(self.user)
+        item.vote(self.user)
+        item.vote(user2)
+        self.assertEqual(item.votes.size, 2) # TODO: test it here or for collection rather?
+        self.assertEqual(list(item.votes), [self.user, user2])
+
+    def test_unvote(self) -> None:
+        item = self.make_item('poll')
+        user2 = self.app.login()
+        item.vote(self.user)
+        item.vote(user2)
+        item.unvote(self.user)
+        self.assertEqual(item.votes.size, 1) # TODO ^
+        self.assertEqual(list(item.votes), [user2])
+
+    def test_xxx(self) -> None:
+        user2 = self.app.login()
+        lst = self.app.lists.create('poll', v=2)
+        items = [
+            lst.items.create('A'),
+            lst.items.create('B'),
+            lst.items.create('C')
+        ]
+        items[1].vote(self.user)
+        items[1].vote(user2)
+        items[2].vote(self.user)
+        self.assertEqual(list(lst.items.values()), [items[1], items[2], items[0]])

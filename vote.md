@@ -1,5 +1,12 @@
 # Votes
 
+* CONTINUE: UI
+* TODO OQ how to get new item position after vote
+  * a) def vote(self, user: User) -> int
+  * b) Item.position = 0 (in json only if include is true query position)
+  * bauchgefühl sagt a, weil position kein property von Item
+* TODO: switch List.Items rcollection if feature votes gets enabled/disabled
+
 * How to make combine Object and Meta (e.g. for Activity)
 ```
 class Blubbs(Object, CollectionSeq):
