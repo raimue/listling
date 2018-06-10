@@ -35,7 +35,9 @@ listling.UI = class extends micro.UI {
 
         this.pages = this.pages.concat([
             {url: "^/$", page: "listling-start-page"},
+            {url: "^/about$", page: "listling-home-page"},
             {url: "^/about$", page: makeAboutPage},
+            {url: "^/home$", page: "listling-home-page"},
             {url: "^/lists/([^/]+)(?:/[^/]+)?$", page: listling.ListPage.make}
         ]);
 
@@ -47,6 +49,8 @@ listling.UI = class extends micro.UI {
                 return elem;
             }
         });
+
+        micro.bind.transforms.makeListURL = listling.util.makeListURL;
     }
 };
 
@@ -114,6 +118,35 @@ listling.StartPage = class extends micro.Page {
         ui.shortcutContext.remove("E");
     }
 };
+
+listling.HomePage = class extends micro.Page {
+    createdCallback() {
+        console.log("UI", ui.user);
+        this.appendChild(
+            document.importNode(ui.querySelector("#listling-home-page-template").content, true));
+        this._data = new micro.bind.Watchable({
+            user: ui.user,
+            lists: null,
+            toggleSubscription: list => {
+                console.log("TOGGELING STUFF");
+                let i = this._data.lists.indexOf(list);
+                console.log(i);
+                list.activity.user_subscribed = !list.activity.user_subscribed;
+                this._data.lists[i] = list;
+            }
+        });
+        micro.bind.bind(this.children, this._data);
+    }
+
+    attachedCallback() {
+        (async() => {
+            let lists = await micro.call("GET", `/api/users/${ui.user.id}/lists`);
+            this._data.lists = new micro.bind.Watchable(lists);
+            console.log(this._data.lists);
+        })();
+    }
+}
+document.registerElement("listling-home-page", listling.HomePage);
 
 listling.ListPage = class extends micro.Page {
     static async make(url, id) {

@@ -29,6 +29,8 @@ def make_server(port=8080, url=None, debug=False, redis_url='', smtp_url=''):
     """Create an Open Listling server."""
     app = Listling(redis_url, smtp_url=smtp_url)
     handlers = [
+        (r'/api/users/([^/]+)/lists$', _UserListsEndpoint),
+        (r'/api/users/([^/]+)/lists/([^/]+)$', _UserListsListEndpoint),
         (r'/api/lists$', _ListsEndpoint),
         (r'/api/lists/create-example$', _ListsCreateExampleEndpoint),
         (r'/api/lists/([^/]+)$', _ListEndpoint),
@@ -44,6 +46,25 @@ def make_server(port=8080, url=None, debug=False, redis_url='', smtp_url=''):
     ]
     return Server(app, handlers, port, url, client_modules_path='node_modules',
                   client_service_path='listling/service.js', debug=debug)
+
+class _UserListsEndpoint(Endpoint):
+    def get(self, id: str) -> None:
+        lists = self.app.users[id].lists
+        self.write(json.dumps([lst.json(restricted=True) for lst in lists.values()]))
+
+    def post(self, id: str) -> None:
+        lists = self.app.users[id].lists
+        args = self.check_args({'list_id': str})
+        try:
+            args['list'] = self.app.lists[args.pop('list_id')]
+        except KeyError:
+            raise micro.ValueError('unknown_list_id')
+        lists.add(*args)
+
+class _UserListsListEndpoint(Endpoint):
+    def delete(self, user_id: str, id: str) -> None:
+        lists = self.app.users[user_id].lists
+        lists.remove(id)
 
 class _ListsEndpoint(Endpoint):
     def post(self):

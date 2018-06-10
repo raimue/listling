@@ -14,6 +14,9 @@
 
 """Open Listling core."""
 
+import typing
+from typing import Optional
+
 import micro
 from micro import (Activity, Application, Collection, Editable, Object, Orderable, Trashable,
                    Settings, Event)
@@ -63,7 +66,8 @@ class Listling(Application):
     class Lists(Collection):
         """See :ref:`Lists`."""
 
-        def create(self, use_case=None, description=None, title=None, v=1):
+        def create(self, use_case: str = None, description: str = None, title: str = None,
+                   v: int = 1) -> 'List':
             """See :http:post:`/api/lists`."""
             if v == 1:
                 # create(title, description=None)
@@ -89,6 +93,7 @@ class Listling(Application):
                 activity=Activity('{}.activity'.format(id), self.app, subscriber_ids=[]))
             self.app.r.oset(lst.id, lst)
             self.app.r.rpush(self.map_key, lst.id)
+            self.app.user.lists.add(lst, self.app.user)
             self.app.activity.publish(
                 Event.create('create-list', None, {'lst': lst}, app=self.app))
             return lst
@@ -115,7 +120,7 @@ class Listling(Application):
     def __init__(self, redis_url='', email='bot@localhost', smtp_url='',
                  render_email_auth_message=None):
         super().__init__(redis_url, email, smtp_url, render_email_auth_message)
-        self.types.update({'List': List, 'Item': Item})
+        self.types.update({'User': User, 'List': List, 'Item': Item})
         self.lists = Listling.Lists((self, 'lists'))
 
     def do_update(self):
@@ -156,6 +161,46 @@ class Listling(Application):
             icon_small=None, icon_large=None, provider_name=None, provider_url=None,
             provider_description={}, feedback_url=None, staff=[], push_vapid_private_key=None,
             push_vapid_public_key=None, v=2)
+
+    def create_user(
+            self, id: str, authors: typing.List[str], name: str, email: None, auth_secret: str,
+            device_notification_status: str, push_subscription: None) -> 'User':
+        return User(id, self, authors, name, email, auth_secret, device_notification_status,
+                    push_subscription)
+
+class User(micro.User):
+    class Lists(Collection):
+        def add(self, lst: 'List', user: 'User') -> None:
+            """
+            .. http:post:: /users/(id)/lists
+
+            {list_id}
+
+            Bookmark list with *list_id*.
+            """
+            if user != self.host[0]:
+                raise PermissionError()
+            if not lst.id in self:
+                self.app.r.rpush(self.map_key, lst.id)
+
+        def remove(self, lst: 'List', user: 'User') -> None:
+            """
+            .. http:delete:: /users/(id)/lists/(list-id)
+
+            Unbookmark list with *list_id*.
+            """
+            if user != self:
+                raise PermissionError()
+            self.app.r.lrem(self.map_key, lst.id)
+
+    def __init__(
+            self, id: str, app: Listling, authors: typing.List[str], name: str, email:
+            Optional[str], auth_secret: str, device_notification_status: str,
+            push_subscription: Optional[str]) -> None:
+        super().__init__(id, app, authors, name, email, auth_secret, device_notification_status,
+                         push_subscription)
+        # TODO: pre, only for self
+        self.lists = User.Lists((self, 'lists'))
 
 class List(Object, Editable):
     """See :ref:`List`."""
@@ -206,7 +251,11 @@ class List(Object, Editable):
             'title': self.title,
             'description': self.description,
             'features': self.features,
-            'activity': self.activity.json(restricted)
+            'activity': self.activity.json(restricted),
+            **(
+                # TODO user_bookmarked
+                {'user_subscribed': self.id in self.app.user.lists} if restricted and include
+                else {})
         }
 
 class Item(Object, Editable, Trashable):

@@ -171,6 +171,73 @@
         </micro-about-page>
     </template>
 
+    <template id="listling-home-page-template">
+        <h1 data-content="format 'Hi there, {user}!' 'user' user.name"></h1>
+        <section>
+            <h1>Your lists</h1>
+            <ul class="listling-home-lists" data-content="list lists 'lst'">
+                <template>
+                    <li data-class-listling-home-subscribed="lst.user_subscribed">
+                        <a data-content="lst.title" data-href="makeListURL lst"></a>
+                        <span>
+                            <button
+                                is="micro-button"
+                                class="listling-home-subscribe action micro-secondary"
+                                data-run="bind toggleSubscription lst"
+                            >
+                                <i class="fa fa-bell"></i>
+                            </button>
+                        </span>
+                        <ul is="micro-menu" class="micro-secondary">
+                            <li>
+                                <button class="link"><i class="fa fa-fw fa-bars"></i></button>
+                                <ul is="micro-menu">
+                                    <li><button class="link">Unbookmark</button></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                </template>
+            </ul>
+        </section>
+    </template>
+    <style>
+        .listling-home-lists {
+            display: table;
+            width: 100%;
+            padding: 0;
+            border-collapse: collapse;
+        }
+
+        .listling-home-lists > li {
+            display: table-row;
+        }
+
+        .listling-home-lists > li:nth-child(n+2) {
+            border-top: 1px solid var(--micro-color-delimiter);
+        }
+
+        .listling-home-lists > li > * {
+            display: table-cell;
+        }
+
+        .listling-home-lists > li > a {
+            width: 100%;
+        }
+
+        .listling-home-lists > li > span {
+            padding: calc(1.5rem / 4);
+        }
+
+        .listling-home-subscribe i {
+            color: var(--micro-color-text-subtle);
+        }
+
+        .listling-home-lists > li.listling-home-subscribed .listling-home-subscribe i {
+            color: yellow;
+        }
+    </style>
+
     <template class="listling-list-page-template">
         <form>
             <header>
