@@ -44,7 +44,7 @@
                                     type="button"
                                     class="listling-start-create-list action"
                                     title="⌨ S"
-                                    data-run="bind createList useCase"
+                                    data-run="bind createList useCase.id"
                                     data-onfocus="bind selectUseCase useCase"
                                 >
                                     <i class="fa fa-paper-plane"></i> Start
@@ -175,66 +175,156 @@
         <h1 data-content="format 'Hi there, {user}!' 'user' user.name"></h1>
         <section>
             <h1>Your lists</h1>
-            <ul class="listling-home-lists" data-content="list lists 'lst'">
-                <template>
-                    <li data-class-listling-home-subscribed="lst.user_subscribed">
-                        <a data-content="lst.title" data-href="makeListURL lst"></a>
-                        <span>
-                            <button
-                                is="micro-button"
-                                class="listling-home-subscribe action micro-secondary"
-                                data-run="bind toggleSubscription lst"
-                            >
-                                <i class="fa fa-bell"></i>
-                            </button>
-                        </span>
-                        <ul is="micro-menu" class="micro-secondary">
+            <div class="micro-object-list">
+                <header>
+                    <div>
+                        <span></span>
+                        <span class="listling-home-page-subscribed">Subscribed</span>
+                        <!--<span></span>-->
+                    </div>
+                </header>
+                <ul data-content="list lists 'lst'">
+                    <template>
+                        <li
+                            class="micro-panel"
+                            data-class-listling-home-subscribed="lst.activity.user_subscribed"
+                            tabindex="0"
+                        >
+                            <a class="link" data-content="lst.title" data-href="makeListURL lst">
+                            </a>
+                            <span>
+                                <button
+                                    is="micro-button"
+                                    class="listling-home-subscribe action micro-secondary"
+                                    data-run="bind toggleSubscription lst"
+                                >
+                                    <i class="fa fa-fw fa-bell"></i>
+                                </button>
+                            </span>
+                            <!--<ul is="micro-menu" class="micro-secondary">
+                                <li>
+                                    <button class="link"><i class="fa fa-fw fa-bars"></i></button>
+                                    <ul is="micro-menu">
+                                        <li><button class="link">Unbookmark</button></li>
+                                    </ul>
+                                </li>
+                            </ul>-->
+                        </li>
+                    </template>
+                </ul>
+            </div>
+            <ul is="micro-menu">
+                <li>
+                    <button is="micro-button" class="action" data-shortcut="new Shortcut 'S'">
+                        <i class="fa fa-paper-plane"></i> Start new list
+                    </button>
+                    <ul is="micro-menu" data-content="list useCases 'useCase'">
+                        <template>
                             <li>
-                                <button class="link"><i class="fa fa-fw fa-bars"></i></button>
-                                <ul is="micro-menu">
-                                    <li><button class="link">Unbookmark</button></li>
-                                </ul>
+                                <button class="action"
+                                        data-run="bind createList useCase.id">
+                                    <i
+                                        data-class-name="format 'fa fa-fw fa-{icon}' 'icon' useCase.icon"
+                                    >
+                                    </i>
+                                    <span data-content="useCase.title"></span>
+                                </button>
                             </li>
-                        </ul>
-                    </li>
-                </template>
+                        </template>
+                    </ul>
+                </li>
+                <!--<li>
+                    <button is="micro-button" class="link">
+                        <i class="fa fa-book"></i> Example
+                    </button>
+                    <ul is="micro-menu">
+                        <li style="white-space: nowrap;">
+                            <button is="micro-button" class="link">
+                                <i class="fa fa-fw fa-check"></i> To-Do list
+                            </button>
+                        </li>
+                        <li style="white-space: nowrap;">
+                            <button is="micro-button" class="link">
+                                <i class="fa fa-fw fa-shopping-cart"></i> Shopping list
+                            </button>
+                        </li>
+                    </ul>
+                </li>-->
             </ul>
+            <p>
+                <small>
+                    You can also view some
+                    <a class="link" href="/" data-shortcut="new Shortcut 'E'">
+                        <i class="fa fa-book"></i> Examples
+                    </a>.
+                </small>
+            </p>
         </section>
     </template>
     <style>
-        .listling-home-lists {
+        .micro-object-list {
             display: table;
             width: 100%;
             padding: 0;
             border-collapse: collapse;
         }
 
-        .listling-home-lists > li {
+        .micro-object-list > header {
+            display: table-header-group;
+        }
+
+        .micro-object-list > header > div,
+        .micro-object-list > ul > li {
             display: table-row;
         }
 
-        .listling-home-lists > li:nth-child(n+2) {
-            border-top: 1px solid var(--micro-color-delimiter);
-        }
-
-        .listling-home-lists > li > * {
+        .micro-object-list > header > div > *,
+        .micro-object-list > ul > li > * {
             display: table-cell;
         }
 
-        .listling-home-lists > li > a {
-            width: 100%;
+        .micro-object-list > header > div > * {
+            transform: rotate(10deg);
+            transform-origin: bottom right;
+            font-size: 0.875em;
+            color: var(--micro-color-text-subtle);
         }
 
-        .listling-home-lists > li > span {
-            padding: calc(1.5rem / 4);
+        .micro-object-list > ul {
+            display: table-row-group;
         }
+
+        .micro-object-list > ul > li {
+            border-top: 1px solid var(--micro-color-delimiter);
+            cursor: pointer;
+        }
+
+        /*.micro-object-list > ul > li:hover,
+        .micro-object-list > ul > li:focus {
+            background: var(--micro-color-delimiter);
+        }*/
+
+        .micro-object-list > ul > li > :first-child {
+            width: 100%;
+            /*padding-left: 0;
+            padding-right: 0;*/
+        }
+
+        /*.micro-object-list > li > span {
+            padding: calc(1.5rem / 4);
+        }*/
 
         .listling-home-subscribe i {
             color: var(--micro-color-text-subtle);
         }
 
-        .listling-home-lists > li.listling-home-subscribed .listling-home-subscribe i {
-            color: yellow;
+        .micro-object-list li.listling-home-subscribed .listling-home-subscribe i {
+            color: forestgreen; /* TODO */
+        }
+
+        .listling-home-page-subscribed {
+            max-width: 1.5rem;
+            text-align: right;
         }
     </style>
 

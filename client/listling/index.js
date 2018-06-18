@@ -22,6 +22,13 @@
 
 self.listling = self.listling || {};
 
+listling.USE_CASES = [
+    {id: "todo", title: "To-Do list", icon: "check"},
+    {id: "shopping", title: "Shopping list", icon: "shopping-cart"},
+    {id: "meeting-agenda", title: "Meeting agenda", icon: "handshake-o"},
+    {id: "simple", title: "Simple list", icon: "list"}
+];
+
 /**
  * Open Listling UI.
  */
@@ -52,6 +59,30 @@ listling.UI = class extends micro.UI {
 
         micro.bind.transforms.makeListURL = listling.util.makeListURL;
     }
+
+    async createList(useCase) {
+        let list = await micro.call("POST", "/api/lists", {use_case: useCase, v: 2});
+        ui.navigate(`/lists/${list.id.split(":")[1]}`);
+    }
+
+    async subscribeList(list) {
+        let pushSubscription = await ui.service.pushManager.getSubscription();
+        if (!pushSubscription || !ui.user.push_subscription) {
+            let result = await ui.enableDeviceNotifications();
+            if (result === "error") {
+                return;
+            }
+        }
+        list.activity = await micro.call(
+            "PATCH", `/api/lists/${list.id}/activity`, {op: "subscribe"});
+        // TODO this.list = this._data.lst;
+    }
+
+    async unsubscribeList(list) {
+        list.activity = await micro.call(
+            "PATCH", `/api/lists/${list.id}/activity`, {op: "unsubscribe"});
+        // TODO this.list = this._data.lst;
+    }
 };
 
 /**
@@ -59,20 +90,13 @@ listling.UI = class extends micro.UI {
  */
 listling.StartPage = class extends micro.Page {
     createdCallback() {
-        const USE_CASES = [
-            {id: "todo", title: "To-Do list", icon: "check"},
-            {id: "shopping", title: "Shopping list", icon: "shopping-cart"},
-            {id: "meeting-agenda", title: "Meeting agenda", icon: "handshake-o"},
-            {id: "simple", title: "Simple list", icon: "list"}
-        ];
-
         super.createdCallback();
         this.appendChild(
             document.importNode(ui.querySelector(".listling-start-page-template").content, true));
         this._data = new micro.bind.Watchable({
             settings: ui.settings,
-            useCases: USE_CASES,
-            selectedUseCase: USE_CASES[0],
+            useCases: listling.USE_CASES,
+            selectedUseCase: listling.USE_CASES[0],
 
             focusUseCase(event) {
                 event.target.focus();
@@ -87,10 +111,7 @@ listling.StartPage = class extends micro.Page {
                 }, 0);
             },
 
-            createList: async useCase => {
-                let list = await micro.call("POST", "/api/lists", {use_case: useCase.id, v: 2});
-                ui.navigate(`/lists/${list.id.split(":")[1]}`);
-            },
+            createList: ui.createList.bind(ui),
 
             createExample: async useCase => {
                 let list = await micro.call("POST", "/api/lists/create-example",
@@ -127,13 +148,21 @@ listling.HomePage = class extends micro.Page {
         this._data = new micro.bind.Watchable({
             user: ui.user,
             lists: null,
-            toggleSubscription: list => {
+            useCases: listling.USE_CASES,
+
+            toggleSubscription: async(list) => {
                 console.log("TOGGELING STUFF");
+                if (list.activity.user_subscribed) {
+                    await ui.unsubscribeList(list);
+                } else {
+                    await ui.subscribeList(list);
+                }
                 let i = this._data.lists.indexOf(list);
-                console.log(i);
                 list.activity.user_subscribed = !list.activity.user_subscribed;
                 this._data.lists[i] = list;
-            }
+            },
+
+            createList: ui.createList.bind(ui)
         });
         micro.bind.bind(this.children, this._data);
     }
@@ -212,6 +241,7 @@ listling.ListPage = class extends micro.Page {
                 }
             },
 
+            // TODO replace with ui method
             subscribe: async() => {
                 let pushSubscription = await ui.service.pushManager.getSubscription();
                 if (!pushSubscription || !ui.user.push_subscription) {

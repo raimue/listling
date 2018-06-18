@@ -181,7 +181,7 @@ class User(micro.User):
             if user != self.host[0]:
                 raise PermissionError()
             if not lst.id in self:
-                self.app.r.rpush(self.map_key, lst.id)
+                self.app.r.lpush(self.map_key, lst.id)
 
         def remove(self, lst: 'List', user: 'User') -> None:
             """
