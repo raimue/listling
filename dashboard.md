@@ -2,10 +2,17 @@
 
 micro branch: custom-user
 
-* OQ list layout
-  * grid not possible, because ul li nested (display contents subgrid not available)
-  * a) table layout (dynamic spacing over multiple rows, less control)
-  * b) list of flex boxes (no dynamic spacing over multiple rows, more control)
+* CONTINUE subscribe unsubscribe as util methods
+  * OQ list changes through event? would be best i guess...
+* CONTINUE rest of list style
+  * subscribed header alignment
+  * strange padding in firefox for menu
+  * OQ list layout
+    * grid not possible, because ul li nested (display contents subgrid not available)
+    * a) table layout (dynamic spacing over multiple rows, less control)
+    * b) list of flex boxes (no dynamic spacing over multiple rows, more control)
+    * table layout not very well defined in standards and complex (multi rows and columns possible eg)...
+
 * OQ buttons (subscribe) and micro-secondary
   * secondary style for action - so no more need nest them in one item menus...
 * OQ create new list on home page, how to layout?
