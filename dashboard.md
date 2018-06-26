@@ -2,23 +2,18 @@
 
 micro branch: custom-user
 
-* CONTINUE subscribe unsubscribe as util methods
-  * OQ list changes through event? would be best i guess...
-* CONTINUE rest of list style
-  * subscribed header alignment
-  * strange padding in firefox for menu
-  * OQ list layout
-    * grid not possible, because ul li nested (display contents subgrid not available)
-    * a) table layout (dynamic spacing over multiple rows, less control)
-    * b) list of flex boxes (no dynamic spacing over multiple rows, more control)
-    * table layout not very well defined in standards and complex (multi rows and columns possible eg)...
+* TODO remove bookmark
+* TODO on list page: bookmark / remove bookmark menu item toggle button
 
+* list layout
+  * grid not possible, because ul li nested (display contents subgrid not available)
+  * a) table layout (dynamic spacing over multiple rows, less control)
+  * b) list of flex boxes (no dynamic spacing over multiple rows, more control)
+  * table layout not very well defined in standards and complex (multi rows and columns possible eg)...
 * OQ buttons (subscribe) and micro-secondary
   * secondary style for action - so no more need nest them in one item menus...
 * OQ create new list on home page, how to layout?
   * grid of small icons + one create button?
-* TODO link should cover whole li, i.e. cant use <a>
-* TODO on list page: bookmark / remove bookmark menu item toggle button
 
 * idea: optional collection meta: last item (useful if activity is hosted)
 

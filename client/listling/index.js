@@ -59,13 +59,15 @@ listling.UI = class extends micro.UI {
 
         micro.bind.transforms.makeListURL = listling.util.makeListURL;
     }
+};
 
-    async createList(useCase) {
-        let list = await micro.call("POST", "/api/lists", {use_case: useCase, v: 2});
-        ui.navigate(`/lists/${list.id.split(":")[1]}`);
-    }
+listling.createList = async function(useCase) {
+    let list = await micro.call("POST", "/api/lists", {use_case: useCase, v: 2});
+    await ui.navigate(`/lists/${list.id.split(":")[1]}`);
+};
 
-    async subscribeList(list) {
+listling.toggleListActivitySubscription = async function(list) {
+    if (!list.activity.user_subscribed) {
         let pushSubscription = await ui.service.pushManager.getSubscription();
         if (!pushSubscription || !ui.user.push_subscription) {
             let result = await ui.enableDeviceNotifications();
@@ -73,15 +75,15 @@ listling.UI = class extends micro.UI {
                 return;
             }
         }
-        list.activity = await micro.call(
-            "PATCH", `/api/lists/${list.id}/activity`, {op: "subscribe"});
-        // TODO this.list = this._data.lst;
     }
 
-    async unsubscribeList(list) {
-        list.activity = await micro.call(
-            "PATCH", `/api/lists/${list.id}/activity`, {op: "unsubscribe"});
-        // TODO this.list = this._data.lst;
+    let op = list.activity.user_subscribed ? "unsubscribe" : "subscribe";
+    try {
+        let activity = await ui.call("PATCH", `/api/lists/${list.id}/activity`, {op});
+        list = Object.assign({}, list, {activity});
+        ui.dispatchEvent(new CustomEvent(`activity-${op}`, {detail: {activity, list}}));
+    } catch (e) {
+        ui.handleCallError(e);
     }
 };
 
@@ -111,7 +113,7 @@ listling.StartPage = class extends micro.Page {
                 }, 0);
             },
 
-            createList: ui.createList.bind(ui),
+            createList: listling.createList,
 
             createExample: async useCase => {
                 let list = await micro.call("POST", "/api/lists/create-example",
@@ -142,37 +144,37 @@ listling.StartPage = class extends micro.Page {
 
 listling.HomePage = class extends micro.Page {
     createdCallback() {
-        console.log("UI", ui.user);
         this.appendChild(
             document.importNode(ui.querySelector("#listling-home-page-template").content, true));
         this._data = new micro.bind.Watchable({
             user: ui.user,
             lists: null,
             useCases: listling.USE_CASES,
-
-            toggleSubscription: async(list) => {
-                console.log("TOGGELING STUFF");
-                if (list.activity.user_subscribed) {
-                    await ui.unsubscribeList(list);
-                } else {
-                    await ui.subscribeList(list);
-                }
-                let i = this._data.lists.indexOf(list);
-                list.activity.user_subscribed = !list.activity.user_subscribed;
-                this._data.lists[i] = list;
-            },
-
-            createList: ui.createList.bind(ui)
+            toggleSubscription: listling.toggleListActivitySubscription,
+            createList: listling.createList
         });
         micro.bind.bind(this.children, this._data);
     }
 
     attachedCallback() {
+        this._updateList = event => {
+            let i = this._data.lists.findIndex(list => list.id === event.detail.list.id);
+            if (i !== -1) {
+                this._data.lists[i] = event.detail.list;
+            }
+        };
+        ui.addEventListener("activity-subscribe", this._updateList);
+        ui.addEventListener("activity-unsubscribe", this._updateList);
+
         (async() => {
             let lists = await micro.call("GET", `/api/users/${ui.user.id}/lists`);
             this._data.lists = new micro.bind.Watchable(lists);
-            console.log(this._data.lists);
         })();
+    }
+
+    detachedCallback() {
+        ui.removeEventListener("activity-subscribe", this._updateList);
+        ui.removeEventListener("activity-unsubscribe", this._updateList);
     }
 }
 document.registerElement("listling-home-page", listling.HomePage);
@@ -241,7 +243,9 @@ listling.ListPage = class extends micro.Page {
                 }
             },
 
-            // TODO replace with ui method
+            toggleSubscription: listling.toggleListActivitySubscription,
+
+            /*// TODO replace with ui method
             subscribe: async() => {
                 let pushSubscription = await ui.service.pushManager.getSubscription();
                 if (!pushSubscription || !ui.user.push_subscription) {
@@ -259,7 +263,7 @@ listling.ListPage = class extends micro.Page {
                 this._data.lst.activity = await micro.call(
                     "PATCH", `/api/lists/${this._data.lst.id}/activity`, {op: "unsubscribe"});
                 this.list = this._data.lst;
-            },
+            },*/
 
             moveItemDrag: event => {
                 // NOTE: This may be better done by micro.OL itself if some reset attribute is set
@@ -313,7 +317,15 @@ listling.ListPage = class extends micro.Page {
     async attachedCallback() {
         ui.shortcutContext.add("B", this._data.toggleTrash);
         ui.shortcutContext.add("C", this._data.toggleSettings);
+        this._updateList = event => {
+            if (event.detail.list.id === this._data.lst.id) {
+                this.list = event.detail.list;
+            }
+        };
+        ui.addEventListener("activity-subscribe", this._updateList);
+        ui.addEventListener("activity-unsubscribe", this._updateList);
         this._events.forEach(e => ui.addEventListener(e, this));
+
         if (this._data.editMode) {
             this._form.elements[0].focus();
         } else {
@@ -329,6 +341,8 @@ listling.ListPage = class extends micro.Page {
         ui.shortcutContext.remove("B");
         ui.shortcutContext.remove("C");
         this._events.forEach(e => ui.removeEventListener(e, this));
+        ui.removeEventListener("activity-subscribe", this._updateList);
+        ui.removeEventListener("activity-unsubscribe", this._updateList);
     }
 
     get list() {

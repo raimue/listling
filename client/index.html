@@ -172,56 +172,59 @@
     </template>
 
     <template id="listling-home-page-template">
-        <h1 data-content="format 'Hi there, {user}!' 'user' user.name"></h1>
+        <h1 data-content="format 'Welcome back, {user}!' 'user' user.name"></h1>
         <section>
             <h1>Your lists</h1>
             <div class="micro-object-list">
                 <header>
-                    <div>
+                    <!--<div>-->
                         <span></span>
-                        <span class="listling-home-page-subscribed">Subscribed</span>
-                        <!--<span></span>-->
-                    </div>
+                        <span class="listling-home-page-subscribed"><small>Subscribed</small></span>
+                        <span><!--<small>Menu</small>--></span>
+                    <!--</div>-->
                 </header>
                 <ul data-content="list lists 'lst'">
                     <template>
                         <li
-                            class="micro-panel"
+                            class="micro-panel micro-quick-nav"
                             data-class-listling-home-subscribed="lst.activity.user_subscribed"
+                            data-shortcut-context="new ShortcutContext"
                             tabindex="0"
                         >
-                            <a class="link" data-content="lst.title" data-href="makeListURL lst">
+                            <a class="link" data-content="lst.title" data-href="makeListURL lst"
+                               data-shortcut="new Shortcut 'Enter'">
                             </a>
                             <span>
                                 <button
                                     is="micro-button"
                                     class="listling-home-subscribe action micro-secondary"
                                     data-run="bind toggleSubscription lst"
+                                    data-shortcut="new Shortcut 'S'"
                                 >
                                     <i class="fa fa-fw fa-bell"></i>
                                 </button>
                             </span>
-                            <!--<ul is="micro-menu" class="micro-secondary">
+                            <ul is="micro-menu" class="micro-secondary">
                                 <li>
                                     <button class="link"><i class="fa fa-fw fa-bars"></i></button>
                                     <ul is="micro-menu">
-                                        <li><button class="link">Unbookmark</button></li>
+                                        <li><button class="link"><i class="fa fa-fw fa-bookmark"></i> Remove bookmark</button></li>
                                     </ul>
                                 </li>
-                            </ul>-->
+                            </ul>
                         </li>
                     </template>
                 </ul>
             </div>
             <ul is="micro-menu">
                 <li>
-                    <button is="micro-button" class="action" data-shortcut="new Shortcut 'S'">
+                    <button is="micro-button" class="action" data-shortcut="new Shortcut 'S' null true">
                         <i class="fa fa-paper-plane"></i> Start new list
                     </button>
                     <ul is="micro-menu" data-content="list useCases 'useCase'">
                         <template>
                             <li>
-                                <button class="action"
+                                <button is="micro-button" class="action"
                                         data-run="bind createList useCase.id">
                                     <i
                                         data-class-name="format 'fa fa-fw fa-{icon}' 'icon' useCase.icon"
@@ -263,38 +266,52 @@
     </template>
     <style>
         .micro-object-list {
-            display: table;
+            /*display: table;
             width: 100%;
             padding: 0;
-            border-collapse: collapse;
+            border-collapse: collapse;*/
         }
 
         .micro-object-list > header {
-            display: table-header-group;
+            /*display: table-header-group;*/
+            margin: 0;
         }
 
-        .micro-object-list > header > div,
+        .micro-object-list > header, /* > div, */
         .micro-object-list > ul > li {
-            display: table-row;
+            /*display: table-row;*/
+            display: flex;
         }
 
-        .micro-object-list > header > div > *,
+        .micro-object-list > header > /*div >*/ :first-child,
+        .micro-object-list > ul > li > :first-child {
+            flex: auto;
+        }
+
+        .micro-object-list > header /*> div*/ > *,
         .micro-object-list > ul > li > * {
-            display: table-cell;
+            /*display: table-cell;*/
+            flex: none;
+            position: relative;
+            margin: 0;
         }
 
-        .micro-object-list > header > div > * {
-            transform: rotate(10deg);
-            transform-origin: bottom right;
-            font-size: 0.875em;
-            color: var(--micro-color-text-subtle);
+        .micro-object-list > header /*> div*/ > * > small {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            /*right: 50%;
+            transform: rotate(25deg);
+            transform-origin: bottom right;*/
         }
 
         .micro-object-list > ul {
-            display: table-row-group;
+            /*display: table-row-group;*/
+            margin: 0;
+            padding: 0;
         }
 
-        .micro-object-list > ul > li {
+        .micro-object-list > ul > li:not(:first-child) {
             border-top: 1px solid var(--micro-color-delimiter);
             cursor: pointer;
         }
@@ -305,7 +322,7 @@
         }*/
 
         .micro-object-list > ul > li > :first-child {
-            width: 100%;
+            /*width: 100%;*/
             /*padding-left: 0;
             padding-right: 0;*/
         }
@@ -323,8 +340,13 @@
         }
 
         .listling-home-page-subscribed {
-            max-width: 1.5rem;
+            /*max-width: 1.5rem;*/
             text-align: right;
+        }
+
+        .micro-object-list > header > :not(:first-child) {
+            width: calc(1.28571429rem + 1.5rem / 2);
+            height: calc(1.28571429rem + 1.5rem / 2);
         }
     </style>
 
@@ -348,29 +370,22 @@
                     <li>
                         <button type="button" class="link"><i class="fa fa-fw fa-bars"></i></button>
                         <ul is="micro-menu">
-                            <li data-content="switch lst.activity.user_subscribed">
-                                <template>
-                                    <button
-                                        is="micro-button"
-                                        type="button"
-                                        class="listling-list-unsubscribe action"
-                                        data-run="unsubscribe"
-                                        data-shortcut="new Shortcut 'S'"
-                                    >
+                            <li>
+                                <button
+                                    is="micro-button"
+                                    type="button"
+                                    class="action"
+                                    data-run="bind toggleSubscription lst"
+                                    data-shortcut="new Shortcut 'S'"
+                                    data-content="switch lst.activity.user_subscribed"
+                                >
+                                    <template>
                                         <i class="fa fa-fw fa-bell-slash"></i> Unsubscribe
-                                    </button>
-                                </template>
-                                <template>
-                                    <button
-                                        is="micro-button"
-                                        type="button"
-                                        class="listling-list-subscribe action"
-                                        data-run="subscribe"
-                                        data-shortcut="new Shortcut 'S'"
-                                    >
+                                    </template>
+                                    <template>
                                         <i class="fa fa-fw fa-bell"></i> Subscribe
-                                    </button>
-                                </template>
+                                    </template>
+                                </button>
                             </li>
                         </ul>
                     </li>
